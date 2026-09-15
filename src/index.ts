@@ -1,6 +1,4 @@
-import { XMLParser } from "fast-xml-parser";
-
-import categoriesXml from "./data/merchant_categories.xml";
+import generatedCategories from "./data/generated-categories.json";
 import brandsCsv from "./data/brands.csv";
 import countriesCsv from "./data/countries.csv";
 
@@ -10,35 +8,20 @@ const MAIN_IMAGE_URL =
 const OVERSIZED_IMAGE_URL =
   "https://raw.githubusercontent.com/yevheniia-rubtsova/product-xml-worker/refs/heads/main/test-assets/oversized-test-image.jpg";
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "",
-});
-
-const parsedCategories = xmlParser.parse(categoriesXml);
-
-type AttributeValue = {
-  id: string;
-  nameUK: string;
-};
-
 type Attribute = {
   nameUK: string;
-  type: "multiselect" | "singleselect" | "unknown";
-  attribute_value?: AttributeValue | AttributeValue[];
+  type: "multiselect" | "singleselect";
+  values: string[];
 };
 
 type Category = {
   portal_id: string;
   nameUK: string;
-  attribute?: Attribute | Attribute[];
+  attributes: Attribute[];
 };
 
-const categories: Category[] = Array.isArray(
-  parsedCategories.categories.category
-)
-  ? parsedCategories.categories.category
-  : [parsedCategories.categories.category];
+const categories: Category[] =
+  generatedCategories as Category[];
 
 const brands = brandsCsv
   .split(/\r?\n/)
@@ -52,27 +35,18 @@ const countries = countriesCsv
   .filter(Boolean)
   .slice(1);
 
-function toArray<T>(value: T | T[] | undefined): T[] {
-  if (value === undefined) {
-    return [];
-  }
-
-  return Array.isArray(value) ? value : [value];
-}
-
 function getCategoryAttributes(category: Category): Attribute[] {
-  return toArray(category.attribute);
+  return category.attributes;
 }
 
-function getAttributeValues(attribute: Attribute): AttributeValue[] {
-  return toArray(attribute.attribute_value);
+function getAttributeValues(attribute: Attribute): string[] {
+  return attribute.values;
 }
 
 function characteristicExists(name: string): boolean {
   return categories.some((category) =>
     getCategoryAttributes(category).some(
       (attribute) =>
-        attribute.type !== "unknown" &&
         attribute.nameUK === name
     )
   );
@@ -216,57 +190,25 @@ function generateParamsForCategory(
   const random = createSeededRandom(
     `${seed}:params:${index}:${category.portal_id}`
   );
-  
+
   const params: GeneratedParam[] = [];
 
-  const groupedAttributes = new Map<
-  	string,
-  	Attribute[]
-  >();
-
   for (const attribute of getCategoryAttributes(category)) {
-    if (attribute.type === "unknown") continue;
-
-    const existing =
-	  groupedAttributes.get(attribute.nameUK) ?? [];
-
-	existing.push(attribute);
-
-    groupedAttributes.set(
-      attribute.nameUK,
-      existing
-    );
-  }
-
-  for (const [
-  	attributeName,
-  	matchingAttributes,
-  ] of groupedAttributes) {
-  	const attribute = matchingAttributes[0];
-
-  	const values = Array.from(
-      new Map(
-      	matchingAttributes
-          .flatMap((item) =>
-          	getAttributeValues(item)
-          )
-          .map((value) => [
-          	value.nameUK,
-          	value,
-          ])
-      ).values()
-  	);
+    const values = getAttributeValues(attribute);
 
     if (values.length === 0) {
       continue;
     }
 
     if (attribute.type === "singleselect") {
-      const selected = pickOne(random, values);
+      const selected = pickOne(
+        random,
+        values
+      );
 
       params.push({
-        name: attributeName,
-        values: [selected.nameUK],
+        name: attribute.nameUK,
+        values: [selected],
       });
 
       continue;
@@ -281,8 +223,8 @@ function generateParamsForCategory(
       );
 
       params.push({
-        name: attributeName,
-        values: selected.map((value) => value.nameUK),
+        name: attribute.nameUK,
+        values: selected,
       });
     }
   }
@@ -296,34 +238,19 @@ function generateChangedParam(
   category: Category,
   currentParam: GeneratedParam
 ): GeneratedParam {
-  const matchingAttributes =
-  	getCategoryAttributes(category).filter(
-      (item) =>
-      	item.nameUK === currentParam.name &&
-      	item.type !== "unknown"
-  	);
-
-  if (matchingAttributes.length === 0) {
-  	return currentParam;
-  }
-
-  const attribute = matchingAttributes[0];
-
-  const values = Array.from(
-  	new Map(
-      matchingAttributes
-      	.flatMap((item) =>
-          getAttributeValues(item)
-      	)
-      	.map((value) => [
-          value.nameUK,
-          value,
-      	])
-  	).values()
+  const attribute = getCategoryAttributes(category).find(
+    (item) =>
+      item.nameUK === currentParam.name
   );
 
+  if (!attribute) {
+    return currentParam;
+  }
+
+  const values = getAttributeValues(attribute);
+
   if (values.length === 0) {
-  	return currentParam;
+    return currentParam;
   }
 
   const random = createSeededRandom(
@@ -334,7 +261,7 @@ function generateChangedParam(
     const currentValue = currentParam.values[0];
 
     const alternatives = values.filter(
-      (value) => value.nameUK !== currentValue
+      (value) => value !== currentValue
     );
 
     if (alternatives.length === 0) {
@@ -348,7 +275,7 @@ function generateChangedParam(
 
     return {
       name: currentParam.name,
-      values: [selected.nameUK],
+      values: [selected],
     };
   }
 
@@ -358,60 +285,47 @@ function generateChangedParam(
   );
 
   const currentSorted =
-  	[...currentParam.values].sort();
+    [...currentParam.values].sort();
 
   for (let attempt = 0; attempt < 10; attempt++) {
-  	const selected = pickMany(
+    const selected = pickMany(
       random,
       values,
       1,
       maxValues
-  	).map((value) => value.nameUK);
+    );
 
-  	const selectedSorted =
+    const selectedSorted =
       [...selected].sort();
 
-  	if (!arraysEqual(currentSorted, selectedSorted)) {
+    if (!arraysEqual(currentSorted, selectedSorted)) {
       return {
-      	name: currentParam.name,
-      	values: selected,
+        name: currentParam.name,
+        values: selected,
       };
-  	}
+    }
   }
-
-  // Guaranteed fallback:
-  // if random attempts happened to reproduce the same set,
-  // force one valid difference.
-
-  const availableNames = values.map(
-  	(value) => value.nameUK
-  );
 
   const alternativeValue =
-  	availableNames.find(
+    values.find(
       (value) =>
         !currentParam.values.includes(value)
-  	);
+    );
 
   if (alternativeValue) {
-  	return {
+    return {
       name: currentParam.name,
       values: [alternativeValue],
-  	};
+    };
   }
-
-  // All possible values are already present.
-  // If there is more than one current value,
-  // removing one still creates a valid different set.
 
   if (currentParam.values.length > 1) {
-  	return {
+    return {
       name: currentParam.name,
       values: currentParam.values.slice(0, -1),
-  	};
+    };
   }
 
-  // There genuinely is no alternative.
   return currentParam;
 }
 
@@ -1452,11 +1366,7 @@ export default {
     	new Set(
       	  selectedCategories.flatMap((category) =>
         	getCategoryAttributes(category)
-          	  .filter(
-            	(attribute) =>
-              	  attribute.type !== "unknown"
-          	  )
-          	  .map(
+              .map(
             	(attribute) =>
               	  attribute.nameUK
           	  )
