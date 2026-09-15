@@ -11,6 +11,7 @@ Cloudflare Worker для генерації тестового XML-фіду з �
 ## Зміст
 
 - [Детермінованість](#детермінованість)
+- [Робота кількох QA одночасно](#робота-кількох-qa-одночасно)
 - [Характеристики](#характеристики)
 - [Категорії](#категорії)
 - [Назви та описи](#назви-та-описи)
@@ -63,6 +64,106 @@ changeSeed=3
 ```
 
 Повторне відкриття абсолютно однакового URL повертає той самий результат.
+
+## Робота кількох QA одночасно
+
+Для паралельної роботи кількох QA не потрібно створювати окремий Cloudflare Worker для кожного користувача.
+
+Worker є stateless і не зберігає стан між запитами, тому вся команда може використовувати один production endpoint:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml
+```
+
+Щоб тестові дані різних QA не перетиналися, кожен користувач має використовувати унікальний `idSeed`.
+
+### Рекомендований формат `idSeed`
+
+```text
+idSeed=<qa-name>-<ticket>
+```
+
+Наприклад:
+
+```text
+idSeed=jane-MAU-1234
+idSeed=anna-MAU-1234
+idSeed=olena-MAU-9801
+```
+
+Повний приклад URL:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=jane-MAU-1234
+```
+
+Інший QA може одночасно використовувати:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=anna-MAU-1234
+```
+
+Різні `idSeed` генерують різні:
+
+* product ID;
+* category ID;
+* baseline-дані;
+* характеристики;
+* бренди;
+* країни;
+* ціни;
+* зображення;
+* назви та описи.
+
+> Якщо два QA використовують однаковий `idSeed`, вони працюватимуть з одним і тим самим детермінованим набором товарів.
+
+### Послідовні оновлення одного набору товарів
+
+Для тестування кількох update-state потрібно залишати той самий `idSeed` і змінювати `changeSeed`.
+
+Baseline:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234
+```
+
+Перше оновлення:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234&change=price&changeSeed=1
+```
+
+Друге оновлення:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234&change=price&changeSeed=2
+```
+
+У всіх цих запитах product ID залишаються тими самими, а поля, передані через `change`, можуть отримувати нові детерміновані значення залежно від `changeSeed`.
+
+### Рекомендований підхід для команди
+
+Для звичайного тестування:
+
+```text
+idSeed=<qa-name>-<ticket>
+```
+
+Для послідовних оновлень:
+
+```text
+changeSeed=1
+changeSeed=2
+changeSeed=3
+```
+
+Окремий Cloudflare Worker потрібен лише у випадку, якщо потрібно:
+
+* змінювати сам код генератора;
+* тестувати окрему версію Worker;
+* мати незалежний deployment;
+* не залежати від спільного production Worker.
+
 
 ## Характеристики
 
