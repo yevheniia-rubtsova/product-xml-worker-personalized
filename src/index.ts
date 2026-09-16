@@ -1063,11 +1063,17 @@ function generatePicturesXml(
     .join("\n");
 }
 
+type SetFieldOverride = {
+  name: string;
+  value: string;
+};
+
 function generateOfferFieldXml(
   fieldName: string,
   value: string | number,
   blankFields: string[],
-  noneFields: string[]
+  noneFields: string[],
+  setFields: SetFieldOverride[]
 ): string {
   if (noneFields.includes(fieldName)) {
     return "";
@@ -1077,30 +1083,38 @@ function generateOfferFieldXml(
     return `        <${fieldName}></${fieldName}>`;
   }
 
-  return `        <${fieldName}>${escapeXml(String(value))}</${fieldName}>`;
+  const override = setFields.find(
+    (item) => item.name === fieldName
+  );
+
+  const finalValue =
+    override?.value ?? value;
+
+  return `        <${fieldName}>${escapeXml(String(finalValue))}</${fieldName}>`;
 }
 
 function generateOfferXml(
   product: GeneratedProduct,
   blankFields: string[],
-  noneFields: string[]
+  noneFields: string[],
+  setFields: SetFieldOverride[]
 ): string {
   return `      <offer id="${product.id}" available="${product.available}">
-  ${generateOfferFieldXml("name_ua", product.nameUa, blankFields, noneFields)}
-  ${generateOfferFieldXml("name_ru", product.nameRu, blankFields, noneFields)}
+  ${generateOfferFieldXml("name_ua", product.nameUa, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("name_ru", product.nameRu, blankFields, noneFields, setFields)}
 
-  ${generateOfferFieldXml("description_ua", product.descriptionUa, blankFields, noneFields)}
-  ${generateOfferFieldXml("description_ru", product.descriptionRu, blankFields, noneFields)}
+  ${generateOfferFieldXml("description_ua", product.descriptionUa, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("description_ru", product.descriptionRu, blankFields, noneFields, setFields)}
 
-  ${generateOfferFieldXml("price", product.price, blankFields, noneFields)}
-  ${generateOfferFieldXml("old_price", product.oldPrice, blankFields, noneFields)}
+  ${generateOfferFieldXml("price", product.price, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("old_price", product.oldPrice, blankFields, noneFields, setFields)}
 
-  ${generateOfferFieldXml("categoryId", product.categoryId, blankFields, noneFields)}
+  ${generateOfferFieldXml("categoryId", product.categoryId, blankFields, noneFields, setFields)}
 
-  ${generateOfferFieldXml("vendor", product.vendor, blankFields, noneFields)}
-  ${generateOfferFieldXml("country", product.country, blankFields, noneFields)}
+  ${generateOfferFieldXml("vendor", product.vendor, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("country", product.country, blankFields, noneFields, setFields)}
 
-  ${generateOfferFieldXml("temperature_mode", product.temperatureMode, blankFields, noneFields)}
+  ${generateOfferFieldXml("temperature_mode", product.temperatureMode, blankFields, noneFields, setFields)}
 
   ${generatePicturesXml(product)}
 
@@ -1402,6 +1416,41 @@ export default {
       	? 100
       	: Number(blankPercentParam);
   
+
+	if (
+  	  !Number.isFinite(blankPercent) ||
+  	  blankPercent < 0 ||
+  	  blankPercent > 100
+	) {
+  	  return new Response(
+    	"blankPercent must be a number from 0 to 100",
+    	{
+      	  status: 400,
+    	}
+  	  );
+	}
+
+	const nonePercentParam =
+  	  url.searchParams.get("nonePercent");
+
+	const nonePercent =
+  	  nonePercentParam === null
+      ? 100
+      : Number(nonePercentParam);
+
+	if (
+  	  !Number.isFinite(nonePercent) ||
+  	  nonePercent < 0 ||
+  	  nonePercent > 100
+	) {
+  	  return new Response(
+    	"nonePercent must be a number from 0 to 100",
+    	{
+      	  status: 400,
+    	}
+  	  );
+	}
+
   const supportedOfferFields = [
     "name_ua",
     "name_ru",
@@ -1478,39 +1527,113 @@ export default {
     );
   }
 
-	if (
-  	  !Number.isFinite(blankPercent) ||
-  	  blankPercent < 0 ||
-  	  blankPercent > 100
-	) {
-  	  return new Response(
-    	"blankPercent must be a number from 0 to 100",
-    	{
-      	  status: 400,
-    	}
-  	  );
-	}
+  const setFieldParams =
+    url.searchParams.getAll("setField");
 
-	const nonePercentParam =
-  	  url.searchParams.get("nonePercent");
+  const setFields = setFieldParams.map(
+    (entry) => {
+      const separatorIndex = entry.indexOf(":");
 
-	const nonePercent =
-  	  nonePercentParam === null
-      ? 100
-      : Number(nonePercentParam);
+      if (separatorIndex <= 0) {
+        return null;
+      }
 
-	if (
-  	  !Number.isFinite(nonePercent) ||
-  	  nonePercent < 0 ||
-  	  nonePercent > 100
-	) {
-  	  return new Response(
-    	"nonePercent must be a number from 0 to 100",
-    	{
-      	  status: 400,
-    	}
-  	  );
-	}
+      const name = entry
+        .slice(0, separatorIndex)
+        .trim();
+
+      const value = entry
+        .slice(separatorIndex + 1)
+        .trim();
+
+      if (
+        name.length === 0 ||
+        value.length === 0
+      ) {
+        return null;
+      }
+
+      return {
+        name,
+        value,
+      };
+    }
+  );
+
+  if (
+    setFields.some(
+      (item) => item === null
+    )
+  ) {
+    return new Response(
+      "setField must use format Field:Value",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const validSetFields =
+    setFields.filter(
+      (item): item is SetFieldOverride =>
+        item !== null
+    );
+
+  const setFieldNames =
+    validSetFields.map(
+      (item) => item.name
+    );
+
+  const invalidSetFields =
+    setFieldNames.filter(
+      (field) =>
+        !supportedOfferFields.includes(field)
+    );
+
+  if (invalidSetFields.length > 0) {
+    return new Response(
+      `Unknown setField: ${[
+        ...new Set(invalidSetFields),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const setBlankFieldConflicts =
+    setFieldNames.filter(
+      (field) =>
+        blankFields.includes(field)
+    );
+
+  if (setBlankFieldConflicts.length > 0) {
+    return new Response(
+      `Field cannot be both set and blank: ${[
+        ...new Set(setBlankFieldConflicts),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const setNoneFieldConflicts =
+    setFieldNames.filter(
+      (field) =>
+        noneFields.includes(field)
+    );
+
+  if (setNoneFieldConflicts.length > 0) {
+    return new Response(
+      `Field cannot be both set and none: ${[
+        ...new Set(setNoneFieldConflicts),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
 
   const setCharacteristicNames =
     setCharacteristics
@@ -1682,11 +1805,12 @@ export default {
   );
 
 	const offersXml = generatedProducts
-		.map((product) => 
+		.map((product) =>
       generateOfferXml(
         product,
         blankFields,
-        noneFields
+        noneFields,
+        validSetFields
       )
     )
 		.join("\n");
