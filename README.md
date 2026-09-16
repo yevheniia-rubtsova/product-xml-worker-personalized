@@ -181,6 +181,7 @@ changeSeed=3
 
 ```text
 https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra
+```
 
 ## Категорії
 
