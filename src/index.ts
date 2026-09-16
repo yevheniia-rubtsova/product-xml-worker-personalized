@@ -1063,29 +1063,48 @@ function generatePicturesXml(
     .join("\n");
 }
 
+function generateOfferFieldXml(
+  fieldName: string,
+  value: string | number,
+  blankFields: string[],
+  noneFields: string[]
+): string {
+  if (noneFields.includes(fieldName)) {
+    return "";
+  }
+
+  if (blankFields.includes(fieldName)) {
+    return `        <${fieldName}></${fieldName}>`;
+  }
+
+  return `        <${fieldName}>${escapeXml(String(value))}</${fieldName}>`;
+}
+
 function generateOfferXml(
-  product: GeneratedProduct
+  product: GeneratedProduct,
+  blankFields: string[],
+  noneFields: string[]
 ): string {
   return `      <offer id="${product.id}" available="${product.available}">
-        <name_ua>${escapeXml(product.nameUa)}</name_ua>
-        <name_ru>${escapeXml(product.nameRu)}</name_ru>
+  ${generateOfferFieldXml("name_ua", product.nameUa, blankFields, noneFields)}
+  ${generateOfferFieldXml("name_ru", product.nameRu, blankFields, noneFields)}
 
-        <description_ua>${escapeXml(product.descriptionUa)}</description_ua>
-        <description_ru>${escapeXml(product.descriptionRu)}</description_ru>
+  ${generateOfferFieldXml("description_ua", product.descriptionUa, blankFields, noneFields)}
+  ${generateOfferFieldXml("description_ru", product.descriptionRu, blankFields, noneFields)}
 
-        <price>${product.price}</price>
-        <old_price>${product.oldPrice}</old_price>
+  ${generateOfferFieldXml("price", product.price, blankFields, noneFields)}
+  ${generateOfferFieldXml("old_price", product.oldPrice, blankFields, noneFields)}
 
-        <categoryId>${product.categoryId}</categoryId>
+  ${generateOfferFieldXml("categoryId", product.categoryId, blankFields, noneFields)}
 
-        <vendor>${escapeXml(product.vendor)}</vendor>
-        <country>${escapeXml(product.country)}</country>
+  ${generateOfferFieldXml("vendor", product.vendor, blankFields, noneFields)}
+  ${generateOfferFieldXml("country", product.country, blankFields, noneFields)}
 
-        <temperature_mode>${escapeXml(product.temperatureMode)}</temperature_mode>
+  ${generateOfferFieldXml("temperature_mode", product.temperatureMode, blankFields, noneFields)}
 
-${generatePicturesXml(product)}
+  ${generatePicturesXml(product)}
 
-${generateParamsXml(product)}
+  ${generateParamsXml(product)}
       </offer>`;
 }
 
@@ -1382,6 +1401,82 @@ export default {
   	  blankPercentParam === null
       	? 100
       	: Number(blankPercentParam);
+  
+  const supportedOfferFields = [
+    "name_ua",
+    "name_ru",
+    "description_ua",
+    "description_ru",
+    "price",
+    "old_price",
+    "categoryId",
+    "vendor",
+    "country",
+    "temperature_mode",
+  ];
+
+  const blankFields = [
+    ...new Set(
+      (url.searchParams.get("blankField") ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  const noneFields = [
+    ...new Set(
+      (url.searchParams.get("noneField") ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  const invalidBlankFields =
+    blankFields.filter(
+      (field) =>
+        !supportedOfferFields.includes(field)
+    );
+
+  if (invalidBlankFields.length > 0) {
+    return new Response(
+      `Unknown blankField: ${invalidBlankFields.join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const invalidNoneFields =
+    noneFields.filter(
+      (field) =>
+        !supportedOfferFields.includes(field)
+    );
+
+  if (invalidNoneFields.length > 0) {
+    return new Response(
+      `Unknown noneField: ${invalidNoneFields.join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const conflictingOfferFields =
+    blankFields.filter(
+      (field) =>
+        noneFields.includes(field)
+    );
+
+  if (conflictingOfferFields.length > 0) {
+    return new Response(
+      `Field cannot be both blank and none: ${conflictingOfferFields.join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
 
 	if (
   	  !Number.isFinite(blankPercent) ||
@@ -1587,7 +1682,13 @@ export default {
   );
 
 	const offersXml = generatedProducts
-		.map((product) => generateOfferXml(product))
+		.map((product) => 
+      generateOfferXml(
+        product,
+        blankFields,
+        noneFields
+      )
+    )
 		.join("\n");
 
 	const categoriesXml = generateCategoriesXml(

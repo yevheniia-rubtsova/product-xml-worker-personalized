@@ -19,7 +19,8 @@ Cloudflare Worker для генерації тестового XML-фіду з �
   - [Baseline та базова генерація](#baseline-та-базова-генерація)
   - [Зміни полів товару](#зміни-полів-товару)
   - [Зміни характеристик](#зміни-характеристик)
-  - [Blank / none сценарії](#blank--none-сценарії)
+  - [Blank / none характеристики](#blank--none-сценарії)
+  - [Blank / none для полів offer](#blank--none-для-полів-offer)
   - [Зображення](#зображення)
 - [Обмеження та правила](#обмеження-та-правила)
 - [Категорії з merchant_categories.xml](#категорії-з-merchant_categoriesxml)
@@ -240,7 +241,7 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | Задати довільне значення характеристики | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra` | Для характеристики `Колір` примусово встановлюється значення `Elantra`, навіть якщо такого значення немає в source data. |
 | Задати декілька довільних значень характеристик | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra&setCharacteristic=Тип:CustomValue` | Для кількох характеристик можна передати окремі forced values через повторюваний параметр `setCharacteristic`. |
 
-### Blank / none сценарії
+### Blank / none характеристики
 
 | Сценарій | Повний URL | Результат |
 |---|---|---|
@@ -250,6 +251,15 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | Повністю прибрати характеристику | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&none=Колір` | `Колір` повністю відсутній у XML для 100% applicable товарів. |
 | Прибрати характеристику у частини товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=100&categories=8&idSeed=test-1&none=Колір&nonePercent=20&changeSeed=1` | Приблизно у 20% applicable товарів `Колір` відсутній. |
 | Blank + none для різних характеристик | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=100&categories=8&idSeed=test-1&blank=Колір&blankPercent=30&none=Особливості&nonePercent=20&changeSeed=1` | `Колір` може бути порожнім, а `Особливості` — повністю відсутньою. |
+
+### Blank / none для полів offer
+
+| Сценарій | Повний URL | Результат |
+|---|---|---|
+| Порожній `vendor` | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&blankField=vendor` | Генерує `<vendor></vendor>`. |
+| Прибрати `vendor` | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&noneField=vendor` | Тег `<vendor>` повністю відсутній у `<offer>`. |
+| Порожні декілька полів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&blankField=vendor,country,price` | Поля `vendor`, `country` і `price` присутні, але порожні. |
+| Прибрати декілька полів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&noneField=vendor,country` | Поля `vendor` і `country` повністю відсутні у `<offer>`. |
 
 ### Зображення
 
@@ -327,6 +337,13 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | `setCharacteristic` + `blank` для тієї самої характеристики | Заборонено, HTTP `400`. |
 | `setCharacteristic` + `none` для тієї самої характеристики | Заборонено, HTTP `400`. |
 | Некоректний формат `setCharacteristic` | Якщо немає `:` або відсутня назва/значення, повертається HTTP `400`. |
+| `blankField` | Робить вказане поле `<offer>` порожнім, але залишає сам тег у XML. |
+| `noneField` | Повністю прибирає вказане поле `<offer>` з XML. |
+| Підтримувані `blankField` / `noneField` | `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`. |
+| Декілька `blankField` / `noneField` | Можна передавати через кому, наприклад `blankField=vendor,country,price`. |
+| `blankField` і `noneField` для одного поля | Заборонено, HTTP `400`. |
+| Невідоме поле в `blankField` | HTTP `400`. |
+| Невідоме поле в `noneField` | HTTP `400`. |
 
 ---
 
