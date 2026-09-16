@@ -86,21 +86,21 @@ idSeed=<qa-name>-<ticket>
 Наприклад:
 
 ```text
-idSeed=jane-MAU-1234
-idSeed=anna-MAU-1234
-idSeed=olena-MAU-9801
+idSeed=jane-PB-1234
+idSeed=anna-PB-1234
+idSeed=olena-PB-9801
 ```
 
 Повний приклад URL:
 
 ```text
-https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=jane-MAU-1234
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=jane-PB-1234
 ```
 
 Інший QA може одночасно використовувати:
 
 ```text
-https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=anna-MAU-1234
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=20&categories=8&idSeed=anna-PB-1234
 ```
 
 Різні `idSeed` генерують різні:
@@ -124,19 +124,19 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?coun
 Baseline:
 
 ```text
-https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-PB-1234
 ```
 
 Перше оновлення:
 
 ```text
-https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234&change=price&changeSeed=1
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-PB-1234&change=price&changeSeed=1
 ```
 
 Друге оновлення:
 
 ```text
-https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-MAU-1234&change=price&changeSeed=2
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=jane-PB-1234&change=price&changeSeed=2
 ```
 
 У всіх цих запитах product ID залишаються тими самими, а поля, передані через `change`, можуть отримувати нові детерміновані значення залежно від `changeSeed`.
