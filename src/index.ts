@@ -935,6 +935,43 @@ function applyChanges(
   });
 }
 
+function applySetCharacteristics(
+  products: GeneratedProduct[],
+  setCharacteristics: {
+    name: string;
+    value: string;
+  }[]
+): GeneratedProduct[] {
+  if (setCharacteristics.length === 0) {
+    return products;
+  }
+
+  return products.map((product) => {
+    const updatedParams =
+      product.params.map((param) => {
+        const override =
+          setCharacteristics.find(
+            (item) =>
+              item.name === param.name
+          );
+
+        if (!override) {
+          return param;
+        }
+
+        return {
+          ...param,
+          values: [override.value],
+        };
+      });
+
+    return {
+      ...product,
+      params: updatedParams,
+    };
+  });
+}
+
 function applyBlankAndNone(
   seed: string,
   changeSeed: string,
@@ -1262,6 +1299,52 @@ export default {
   	  ),
 	];
 
+  const setCharacteristicParams =
+    url.searchParams.getAll("setCharacteristic");
+
+  const setCharacteristics = setCharacteristicParams.map(
+    (entry) => {
+      const separatorIndex = entry.indexOf(":");
+
+      if (separatorIndex <= 0) {
+        return null;
+      }
+
+      const name = entry
+        .slice(0, separatorIndex)
+        .trim();
+
+      const value = entry
+        .slice(separatorIndex + 1)
+        .trim();
+
+      if (
+        name.length === 0 ||
+        value.length === 0
+      ) {
+        return null;
+      }
+
+      return {
+        name,
+        value,
+      };
+    }
+  );
+
+  if (
+    setCharacteristics.some(
+      (item) => item === null
+    )
+  ) {
+    return new Response(
+      "setCharacteristic must use format Characteristic:Value",
+      {
+        status: 400,
+      }
+    );
+  }
+
 	if (
   	  changeFields.includes("category") &&
   	  changeCharacteristics.length > 0
@@ -1334,11 +1417,36 @@ export default {
   	  );
 	}
 
-	const requestedCharacteristicNames = [
- 	  ...changeCharacteristics,
-  	  ...blankCharacteristics,
-  	  ...noneCharacteristics,
-	];
+  const setCharacteristicNames =
+    setCharacteristics
+      .filter(
+        (
+          item
+        ): item is {
+          name: string;
+          value: string;
+        } => item !== null
+      )
+      .map((item) => item.name);
+
+  if (
+    changeFields.includes("category") &&
+    setCharacteristicNames.length > 0
+  ) {
+    return new Response(
+      "setCharacteristic cannot be combined with change=category",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const requestedCharacteristicNames = [
+    ...changeCharacteristics,
+    ...blankCharacteristics,
+    ...noneCharacteristics,
+    ...setCharacteristicNames,
+  ];
 
 	const invalidCharacteristicNames =
   	  requestedCharacteristicNames.filter(
@@ -1407,6 +1515,40 @@ export default {
   	  );
 	}
 
+  const setBlankConflicts =
+    setCharacteristicNames.filter(
+      (name) =>
+        blankCharacteristics.includes(name)
+    );
+
+  if (setBlankConflicts.length > 0) {
+    return new Response(
+      `Characteristic cannot be both set and blank: ${[
+        ...new Set(setBlankConflicts),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const setNoneConflicts =
+    setCharacteristicNames.filter(
+      (name) =>
+        noneCharacteristics.includes(name)
+    );
+
+  if (setNoneConflicts.length > 0) {
+    return new Response(
+      `Characteristic cannot be both set and none: ${[
+        ...new Set(setNoneConflicts),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
 	const baselineProducts = generateBaselineProducts(
   		idSeed,
   		count,
@@ -1415,22 +1557,34 @@ export default {
 	);
 
 	const changedProducts = applyChanges(
-  		idSeed,
-  		changeSeed,
-  		baselineProducts,
-  		changeFields,
-  		changeCharacteristics
-	);
+    idSeed,
+    changeSeed,
+    baselineProducts,
+    changeFields,
+    changeCharacteristics
+  );
 
-	const generatedProducts = applyBlankAndNone(
-  		idSeed,
-		changeSeed,
-  		changedProducts,
-  		blankCharacteristics,
-  		blankPercent,
-  		noneCharacteristics,
-  		nonePercent
-	);
+  const setProducts = applySetCharacteristics(
+    changedProducts,
+    setCharacteristics.filter(
+      (
+        item
+      ): item is {
+        name: string;
+        value: string;
+      } => item !== null
+    )
+  );
+
+  const generatedProducts = applyBlankAndNone(
+    idSeed,
+    changeSeed,
+    setProducts,
+    blankCharacteristics,
+    blankPercent,
+    noneCharacteristics,
+    nonePercent
+  );
 
 	const offersXml = generatedProducts
 		.map((product) => generateOfferXml(product))

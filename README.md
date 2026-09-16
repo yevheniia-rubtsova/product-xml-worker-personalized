@@ -173,6 +173,15 @@ changeSeed=3
 - Характеристики типу `unknown` не додаються у generated data.
 - Якщо одна характеристика повторюється у source XML, її значення об'єднуються та дедуплікуються під час генерації `generated-categories.json`.
 
+### Forced value для характеристики
+
+Для негативних або edge-case сценаріїв можна примусово передати значення характеристики, якого немає в системному довіднику.
+
+Наприклад:
+
+```text
+https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra
+
 ## Категорії
 
 Категорії задаються через `portal_id`. Можна передати одну або декілька категорій. Якщо передано декілька, товари розподіляються між ними максимально рівномірно. Один товар завжди має рівно одну категорію.
@@ -227,6 +236,8 @@ changeSeed=3
 | Змінити всі характеристики | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&change=characteristics&changeSeed=1` | Усі характеристики змінюються там, де існує альтернативне допустиме значення або набір значень. |
 | Змінити конкретну характеристику | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&changeCharacteristic=Колір&changeSeed=1` | Змінюється тільки `Колір`. |
 | Змінити декілька конкретних характеристик | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&changeCharacteristic=Колір,Особливості&changeSeed=1` | Змінюються тільки вказані характеристики. |
+| Задати довільне значення характеристики | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra` | Для характеристики `Колір` примусово встановлюється значення `Elantra`, навіть якщо такого значення немає в source data. |
+| Задати декілька довільних значень характеристик | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&setCharacteristic=Колір:Elantra&setCharacteristic=Тип:CustomValue` | Для кількох характеристик можна передати окремі forced values через повторюваний параметр `setCharacteristic`. |
 
 ### Blank / none сценарії
 
@@ -304,6 +315,17 @@ changeSeed=3
 | Індексація | Response містить `X-Robots-Tag: noindex`. |
 | Reproducibility | Response містить `X-Id-Seed` та `X-Change-Seed` headers. |
 | XML metadata | На початку XML додається коментар з `idSeed` та `changeSeed`. |
+| `setCharacteristic` | Дозволяє примусово задати довільне значення характеристики, навіть якщо такого значення немає серед допустимих значень у source data. |
+| Формат `setCharacteristic` | `setCharacteristic=Назва характеристики:Значення` |
+| Декілька `setCharacteristic` | Параметр можна повторювати декілька разів у одному URL. |
+| Валідація назви характеристики | Назва характеристики повинна існувати та бути доступною для обраної baseline-категорії. |
+| Валідація forced value | Значення не перевіряється по source data і може бути будь-яким непорожнім рядком. |
+| `setCharacteristic` для `singleselect` | Поточне значення замінюється одним forced value. |
+| `setCharacteristic` для `multiselect` | Поточний набір значень замінюється одним forced value. |
+| `setCharacteristic` + `change=category` | Заборонено, HTTP `400`. |
+| `setCharacteristic` + `blank` для тієї самої характеристики | Заборонено, HTTP `400`. |
+| `setCharacteristic` + `none` для тієї самої характеристики | Заборонено, HTTP `400`. |
+| Некоректний формат `setCharacteristic` | Якщо немає `:` або відсутня назва/значення, повертається HTTP `400`. |
 
 ---
 
