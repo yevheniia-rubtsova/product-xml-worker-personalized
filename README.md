@@ -272,6 +272,7 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | Змінити зображення | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=images&changeSeed=1` | Для кожного товару генерується інший набір зображень. |
 | Oversized image | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&oversizedImage=true` | Кожен товар має лише oversized test image. |
 | Явно вимкнути oversized image | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&oversizedImage=false` | Використовується звичайна генерація 1–12 зображень. |
+| Змінити тільки порядок картинок | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=imageOrder&changeSeed=1` | Набір URL залишається тим самим, але порядок `<picture>` змінюється. |
 
 ---
 
@@ -357,6 +358,11 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | `setField` + `change` | Дозволено. `setField` має фінальний пріоритет у XML. Наприклад, `change=brand&setField=vendor:Elantra` поверне `vendor=Elantra`. |
 | Некоректний формат `setField` | Якщо немає `:` або відсутня назва/значення, HTTP `400`. |
 | Невідоме поле в `setField` | HTTP `400`. |
+| `change=imageOrder` | Змінює тільки порядок існуючих картинок. Самі URL не змінюються. |
+| Детермінованість `imageOrder` | Однакові `idSeed` + `changeSeed` завжди дають однаковий новий порядок. |
+| Гарантія зміни порядку | Якщо товар має 2 або більше картинок, порядок гарантовано відрізнятиметься від baseline. |
+| `change=images,imageOrder` | Дозволено. Спочатку змінюється набір картинок, потім їх порядок. |
+| `oversizedImage=true` + `change=imageOrder` | Заборонено, HTTP `400`, тому що при `oversizedImage=true` є лише одна картинка. |
 
 ---
 

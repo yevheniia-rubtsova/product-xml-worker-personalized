@@ -561,6 +561,40 @@ function generateChangedPictures(
   return pictures;
 }
 
+function generateChangedImageOrder(
+  seed: string,
+  index: number,
+  currentPictures: string[]
+): string[] {
+  if (currentPictures.length <= 1) {
+    return [...currentPictures];
+  }
+
+  const random = createSeededRandom(
+    `${seed}:changed-image-order:${index}`
+  );
+
+  const reordered = [...currentPictures];
+
+  for (let i = reordered.length - 1; i > 0; i--) {
+    const j = randomInt(random, 0, i);
+
+    [reordered[i], reordered[j]] = [
+      reordered[j],
+      reordered[i],
+    ];
+  }
+
+  if (arraysEqual(reordered, currentPictures)) {
+    return [
+      ...currentPictures.slice(1),
+      currentPictures[0],
+    ];
+  }
+
+  return reordered;
+}
+
 const PRODUCT_NAME_PARAM_PRIORITY = [
   "Тип",
   "Вид",
@@ -873,6 +907,15 @@ function applyChanges(
           `${seed}:change:${changeSeed}`,
           index,
           product.pictures
+        );
+    }
+
+    if (changeFields.includes("imageOrder")) {
+      updatedProduct.pictures =
+        generateChangedImageOrder(
+          `${seed}:change:${changeSeed}`,
+          index,
+          updatedProduct.pictures
         );
     }
 
@@ -1292,6 +1335,7 @@ export default {
   	  "brand",
   	  "country",
  	  "images",
+  	  "imageOrder",
   	  "category",
   	  "characteristics",
 	];
@@ -1312,16 +1356,19 @@ export default {
 	}
 
 	if (
-  	  oversizedImage &&
-  	  changeFields.includes("images")
-	) {
-  	  return new Response(
-    	"oversizedImage=true cannot be combined with change=images",
-    	{
-      		status: 400,
-    	}
-  	  );
-	}
+      oversizedImage &&
+      (
+        changeFields.includes("images") ||
+        changeFields.includes("imageOrder")
+      )
+    ) {
+      return new Response(
+        "oversizedImage=true cannot be combined with change=images or change=imageOrder",
+        {
+          status: 400,
+        }
+      );
+    }
 
 	const changeCharacteristics = [
   	  ...new Set(
