@@ -1111,53 +1111,112 @@ type SetFieldOverride = {
   value: string;
 };
 
+type IndexedFieldTarget = {
+  index: number;
+  name: string;
+};
+
+type IndexedFieldOverride = {
+  index: number;
+  name: string;
+  value: string;
+};
+
+function isTargetedField(
+  targets: IndexedFieldTarget[],
+  productIndex: number,
+  fieldName: string
+): boolean {
+  return targets.some(
+    (item) =>
+      item.index === productIndex &&
+      item.name === fieldName
+  );
+}
+
+function getTargetedFieldOverride(
+  targets: IndexedFieldOverride[],
+  productIndex: number,
+  fieldName: string
+): string | undefined {
+  return targets.find(
+    (item) =>
+      item.index === productIndex &&
+      item.name === fieldName
+  )?.value;
+}
+
 function generateOfferFieldXml(
   fieldName: string,
   value: string | number,
+  productIndex: number,
   blankFields: string[],
   noneFields: string[],
-  setFields: SetFieldOverride[]
+  setFields: SetFieldOverride[],
+  blankFieldsAt: IndexedFieldTarget[],
+  noneFieldsAt: IndexedFieldTarget[],
+  setFieldsAt: IndexedFieldOverride[]
 ): string {
-  if (noneFields.includes(fieldName)) {
+  if (
+    noneFields.includes(fieldName) ||
+    isTargetedField(noneFieldsAt, productIndex, fieldName)
+  ) {
     return "";
   }
 
-  if (blankFields.includes(fieldName)) {
+  if (
+    blankFields.includes(fieldName) ||
+    isTargetedField(blankFieldsAt, productIndex, fieldName)
+  ) {
     return `        <${fieldName}></${fieldName}>`;
   }
 
-  const override = setFields.find(
-    (item) => item.name === fieldName
-  );
+  const targetedOverride =
+    getTargetedFieldOverride(
+      setFieldsAt,
+      productIndex,
+      fieldName
+    );
+
+  const globalOverride =
+    setFields.find(
+      (item) => item.name === fieldName
+    )?.value;
 
   const finalValue =
-    override?.value ?? value;
+    targetedOverride ??
+    globalOverride ??
+    value;
 
   return `        <${fieldName}>${escapeXml(String(finalValue))}</${fieldName}>`;
 }
 
 function generateOfferXml(
   product: GeneratedProduct,
+  productIndex: number,
   blankFields: string[],
   noneFields: string[],
-  setFields: SetFieldOverride[]
+  setFields: SetFieldOverride[],
+  blankFieldsAt: IndexedFieldTarget[],
+  noneFieldsAt: IndexedFieldTarget[],
+  setFieldsAt: IndexedFieldOverride[]
 ): string {
   return `      <offer id="${product.id}" available="${product.available}">
-  ${generateOfferFieldXml("name_ua", product.nameUa, blankFields, noneFields, setFields)}
-  ${generateOfferFieldXml("name_ru", product.nameRu, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("name_ua", product.nameUa, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
+  ${generateOfferFieldXml("name_ru", product.nameRu, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
-  ${generateOfferFieldXml("description_ua", product.descriptionUa, blankFields, noneFields, setFields)}
-  ${generateOfferFieldXml("description_ru", product.descriptionRu, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("description_ua", product.descriptionUa, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
+  ${generateOfferFieldXml("description_ru", product.descriptionRu, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
-  ${generateOfferFieldXml("price", product.price, blankFields, noneFields, setFields)}
-  ${generateOfferFieldXml("old_price", product.oldPrice, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("price", product.price, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
+  ${generateOfferFieldXml("old_price", product.oldPrice, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
-  ${generateOfferFieldXml("categoryId", product.categoryId, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("categoryId", product.categoryId, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
-  ${generateOfferFieldXml("vendor", product.vendor, blankFields, noneFields, setFields)}
-  ${generateOfferFieldXml("country", product.country, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("vendor", product.vendor, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
+  ${generateOfferFieldXml("country", product.country, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
-  ${generateOfferFieldXml("temperature_mode", product.temperatureMode, blankFields, noneFields, setFields)}
+  ${generateOfferFieldXml("temperature_mode", product.temperatureMode, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
   ${generatePicturesXml(product)}
 
@@ -1631,6 +1690,245 @@ export default {
       (item) => item.name
     );
 
+  const parseIndexedFieldTarget = (
+    entry: string
+  ): IndexedFieldTarget | null => {
+    const separatorIndex =
+      entry.indexOf(":");
+
+    if (separatorIndex <= 0) {
+      return null;
+    }
+
+    const indexValue = Number(
+      entry.slice(0, separatorIndex).trim()
+    );
+
+    const name = entry
+      .slice(separatorIndex + 1)
+      .trim();
+
+    if (
+      !Number.isInteger(indexValue) ||
+      indexValue < 1 ||
+      indexValue > count ||
+      name.length === 0
+    ) {
+      return null;
+    }
+
+    return {
+      index: indexValue,
+      name,
+    };
+  };
+
+  const blankFieldsAt =
+    url.searchParams
+      .getAll("blankFieldAt")
+      .map(parseIndexedFieldTarget);
+
+  if (
+    blankFieldsAt.some(
+      (item) => item === null
+    )
+  ) {
+    return new Response(
+      "blankFieldAt must use format ProductIndex:Field and ProductIndex must be from 1 to count",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const validBlankFieldsAt =
+    blankFieldsAt.filter(
+      (item): item is IndexedFieldTarget =>
+        item !== null
+    );
+
+  const noneFieldsAt =
+    url.searchParams
+      .getAll("noneFieldAt")
+      .map(parseIndexedFieldTarget);
+
+  if (
+    noneFieldsAt.some(
+      (item) => item === null
+    )
+  ) {
+    return new Response(
+      "noneFieldAt must use format ProductIndex:Field and ProductIndex must be from 1 to count",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const validNoneFieldsAt =
+    noneFieldsAt.filter(
+      (item): item is IndexedFieldTarget =>
+        item !== null
+    );
+
+  const setFieldsAt =
+    url.searchParams
+      .getAll("setFieldAt")
+      .map((entry) => {
+        const firstSeparator =
+          entry.indexOf(":");
+
+        const secondSeparator =
+          entry.indexOf(
+            ":",
+            firstSeparator + 1
+          );
+
+        if (
+          firstSeparator <= 0 ||
+          secondSeparator <= firstSeparator + 1
+        ) {
+          return null;
+        }
+
+        const indexValue = Number(
+          entry.slice(0, firstSeparator).trim()
+        );
+
+        const name = entry
+          .slice(
+            firstSeparator + 1,
+            secondSeparator
+          )
+          .trim();
+
+        const value = entry
+          .slice(secondSeparator + 1)
+          .trim();
+
+        if (
+          !Number.isInteger(indexValue) ||
+          indexValue < 1 ||
+          indexValue > count ||
+          name.length === 0 ||
+          value.length === 0
+        ) {
+          return null;
+        }
+
+        return {
+          index: indexValue,
+          name,
+          value,
+        };
+      });
+
+  if (
+    setFieldsAt.some(
+      (item) => item === null
+    )
+  ) {
+    return new Response(
+      "setFieldAt must use format ProductIndex:Field:Value and ProductIndex must be from 1 to count",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const validSetFieldsAt =
+    setFieldsAt.filter(
+      (item): item is IndexedFieldOverride =>
+        item !== null
+    );
+
+  const invalidTargetedFields = [
+    ...validBlankFieldsAt,
+    ...validNoneFieldsAt,
+    ...validSetFieldsAt,
+  ].filter(
+    (item) =>
+      !supportedOfferFields.includes(
+        item.name
+      )
+  );
+
+  if (invalidTargetedFields.length > 0) {
+    return new Response(
+      `Unknown targeted field: ${[
+        ...new Set(
+          invalidTargetedFields.map(
+            (item) => item.name
+          )
+        ),
+      ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const sameTarget = (
+    first: IndexedFieldTarget,
+    second: IndexedFieldTarget
+  ): boolean =>
+    first.index === second.index &&
+    first.name === second.name;
+
+  const blankNoneAtConflicts =
+    validBlankFieldsAt.filter(
+      (blankItem) =>
+        validNoneFieldsAt.some(
+          (noneItem) =>
+            sameTarget(blankItem, noneItem)
+        )
+    );
+
+  if (blankNoneAtConflicts.length > 0) {
+    return new Response(
+      "The same product field cannot be both blankFieldAt and noneFieldAt",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const setBlankAtConflicts =
+    validSetFieldsAt.filter(
+      (setItem) =>
+        validBlankFieldsAt.some(
+          (blankItem) =>
+            sameTarget(setItem, blankItem)
+        )
+    );
+
+  if (setBlankAtConflicts.length > 0) {
+    return new Response(
+      "The same product field cannot be both setFieldAt and blankFieldAt",
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const setNoneAtConflicts =
+    validSetFieldsAt.filter(
+      (setItem) =>
+        validNoneFieldsAt.some(
+          (noneItem) =>
+            sameTarget(setItem, noneItem)
+        )
+    );
+
+  if (setNoneAtConflicts.length > 0) {
+    return new Response(
+      "The same product field cannot be both setFieldAt and noneFieldAt",
+      {
+        status: 400,
+      }
+    );
+  }
+
   const invalidSetFields =
     setFieldNames.filter(
       (field) =>
@@ -1852,12 +2150,16 @@ export default {
   );
 
 	const offersXml = generatedProducts
-		.map((product) =>
+		.map((product, index) =>
       generateOfferXml(
         product,
+        index + 1,
         blankFields,
         noneFields,
-        validSetFields
+        validSetFields,
+        validBlankFieldsAt,
+        validNoneFieldsAt,
+        validSetFieldsAt
       )
     )
 		.join("\n");

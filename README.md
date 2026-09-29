@@ -2,7 +2,7 @@
 
 Cloudflare Worker для генерації тестового XML-фіду з персоналізованими товарами.
 
-Основне призначення — тестування імпорту та оновлення товарів із контрольованими змінами категорій, характеристик, цін, брендів, країн, зображень, а також сценаріїв із порожніми або відсутніми характеристиками.
+Основне призначення — тестування імпорту та оновлення товарів із контрольованими змінами категорій, характеристик, цін, брендів, країн і зображень, а також сценаріїв із порожніми, відсутніми або примусово заданими значеннями характеристик і полів товару. Worker також підтримує точкові зміни для конкретних товарів у feed та зміну порядку зображень.
 
 **Production endpoint:**
 
@@ -15,12 +15,13 @@ Cloudflare Worker для генерації тестового XML-фіду з �
 - [Характеристики](#характеристики)
 - [Категорії](#категорії)
 - [Назви та описи](#назви-та-описи)
+- [Точкові зміни полів для конкретних товарів](#точкові-зміни-полів-для-конкретних-товарів)
 - [Приклади URL](#приклади-url)
   - [Baseline та базова генерація](#baseline-та-базова-генерація)
   - [Зміни полів товару](#зміни-полів-товару)
   - [Зміни характеристик](#зміни-характеристик)
-  - [Blank / none характеристики](#blank--none-сценарії)
-  - [Blank / none / forced value для полів offer](#blank--none-для-полів-offer)
+  - [Blank / none характеристики](#blank--none-характеристики)
+  - [Blank / none / forced value для полів offer](#blank--none--forced-value-для-полів-offer)
   - [Зображення](#зображення)
 - [Обмеження та правила](#обмеження-та-правила)
 - [Категорії з merchant_categories.xml](#категорії-з-merchant_categoriesxml)
@@ -200,6 +201,40 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 
 При `change=...` назва та опис навмисно **не регенеруються**. Це дозволяє тестувати часткове оновлення конкретних полів товару незалежно від текстових полів.
 
+## Точкові зміни полів для конкретних товарів
+
+Для сценаріїв, де потрібно змінити поле не у всіх товарах фіда, а лише у конкретного товару за його порядковим номером, підтримуються параметри:
+
+- `blankFieldAt`
+- `noneFieldAt`
+- `setFieldAt`
+
+Нумерація товарів починається з `1`.
+
+#### Зробити поле порожнім у конкретного товару
+
+Формат:
+
+```text
+blankFieldAt=ProductIndex:Field
+```
+`blankField`, `noneField` і `setField` застосовуються до всіх товарів фіда, а `blankFieldAt`, `noneFieldAt` і `setFieldAt` — лише до конкретного товару за його порядковим номером.
+
+#### Прибрати поле у конкретного товару
+
+```text
+noneFieldAt=ProductIndex:Field
+```
+
+### Пріоритети та конфлікти
+
+- `change` спочатку формує update-state.
+- `setField` задає фінальне значення поля для всіх товарів.
+- `setFieldAt` дозволяє задати значення лише конкретному товару.
+- `blankField` / `noneField` застосовуються до всіх товарів.
+- `blankFieldAt` / `noneFieldAt` — тільки до конкретного товару.
+- Конфліктні операції для одного й того самого поля повертають HTTP `400`.
+
 ---
 
 ## Приклади URL
@@ -264,6 +299,10 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | Задати декілька довільних значень | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&setField=vendor:Elantra&setField=country:Neverland` | Можна передавати кілька `setField` окремими параметрами. |
 | Blank vendor → валідний vendor | Спочатку `...?idSeed=test-1&blankField=vendor`, потім `...?idSeed=test-1&change=brand&changeSeed=1` | Product ID залишається тим самим, а `vendor` з порожнього стає валідним брендом із source data. |
 | Blank vendor → довільний vendor | Спочатку `...?idSeed=test-1&blankField=vendor`, потім `...?idSeed=test-1&setField=vendor:Elantra` | Product ID залишається тим самим, а `vendor` отримує довільне значення. |
+| Порожнє поле тільки у конкретного товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&blankFieldAt=2:name_ua` | `name_ua` буде порожнім тільки у 2-го товару. |
+| Порожнє поле у кількох конкретних товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&blankFieldAt=2:name_ua&blankFieldAt=3:name_ua` | `name_ua` буде порожнім у 2-го та 3-го товарів. |
+| Прибрати поле у конкретного товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&noneFieldAt=2:vendor` | `<vendor>` буде відсутній тільки у 2-го товару. |
+| Задати значення поля конкретному товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&setFieldAt=3:vendor:Elantra` | Тільки 3-й товар отримає `vendor=Elantra`. |
 
 ### Зображення
 
@@ -293,7 +332,7 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | `changeSeed` | Може бути будь-яким непорожнім рядком. |
 | `changeSeed` за замовчуванням | `"1"`. |
 | Порожній `changeSeed` | HTTP `400`. |
-| Підтримувані `change` | `price`, `brand`, `country`, `images`, `category`, `characteristics`. |
+| Підтримувані `change` | `price`, `brand`, `country`, `images`, `imageOrder`, `category`, `characteristics`. |
 | Невідоме значення `change` | HTTP `400`. |
 | Дублікати у `change` | Автоматично видаляються. |
 | `change=price` | Змінюються і `price`, і `old_price`; `old_price` залишається більшим за нову ціну. |
@@ -363,6 +402,16 @@ https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?cate
 | Гарантія зміни порядку | Якщо товар має 2 або більше картинок, порядок гарантовано відрізнятиметься від baseline. |
 | `change=images,imageOrder` | Дозволено. Спочатку змінюється набір картинок, потім їх порядок. |
 | `oversizedImage=true` + `change=imageOrder` | Заборонено, HTTP `400`, тому що при `oversizedImage=true` є лише одна картинка. |
+| `blankFieldAt` | Робить конкретне поле порожнім тільки у вказаного товару. Формат: `ProductIndex:Field`. |
+| `noneFieldAt` | Повністю прибирає конкретне поле тільки у вказаного товару. Формат: `ProductIndex:Field`. |
+| `setFieldAt` | Задає конкретне значення поля тільки у вказаного товару. Формат: `ProductIndex:Field:Value`. |
+| Нумерація товарів | `ProductIndex` починається з `1`. |
+| Межі `ProductIndex` | Значення повинно бути від `1` до `count`, інакше HTTP `400`. |
+| Підтримувані поля | Ті самі, що для `blankField`, `noneField` і `setField`: `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`. |
+| Декілька точкових операцій | Параметри `blankFieldAt`, `noneFieldAt` і `setFieldAt` можна повторювати кілька разів. |
+| `blankFieldAt` + `noneFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
+| `setFieldAt` + `blankFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
+| `setFieldAt` + `noneFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
 
 ---
 
