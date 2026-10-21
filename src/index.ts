@@ -177,6 +177,8 @@ type GeneratedProduct = {
 
   temperatureMode: string;
 
+  stockQuantity: number;
+
   pictures: string[];
 
   params: GeneratedParam[];
@@ -479,6 +481,39 @@ function generateCountry(
   return pickOne(random, countries);
 }
 
+function generateStockQuantity(
+  seed: string,
+  index: number
+): number {
+  const random = createSeededRandom(
+    `${seed}:stock-quantity:${index}`
+  );
+
+  return randomInt(random, 0, 100);
+}
+
+function generateChangedStockQuantity(
+  seed: string,
+  index: number,
+  currentStock: number
+): number {
+  const random = createSeededRandom(
+    `${seed}:changed-stock-quantity:${index}`
+  );
+
+  let newStock = randomInt(random, 0, 100);
+
+  if (newStock === currentStock) {
+    newStock =
+      currentStock < 100
+        ? currentStock + 1
+        : currentStock - 1;
+  }
+
+  return newStock;
+}
+
+
 function generateChangedBrand(
   seed: string,
   index: number,
@@ -769,6 +804,11 @@ function generateBaselineProduct(
 
     temperatureMode: "cooling",
 
+    stockQuantity: generateStockQuantity(
+      seed,
+      index
+    ),
+
     pictures: oversizedImage
   	  ? [OVERSIZED_IMAGE_URL]
   	  : generatePictures(seed, index),
@@ -898,6 +938,15 @@ function applyChanges(
           `${seed}:change:${changeSeed}`,
           index,
           product.country
+        );
+    }
+
+    if (changeFields.includes("stock")) {
+      updatedProduct.stockQuantity =
+        generateChangedStockQuantity(
+          `${seed}:change:${changeSeed}`,
+          index,
+          product.stockQuantity
         );
     }
 
@@ -1217,6 +1266,7 @@ function generateOfferXml(
   ${generateOfferFieldXml("country", product.country, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
   ${generateOfferFieldXml("temperature_mode", product.temperatureMode, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
+  ${generateOfferFieldXml("stock_quantity", product.stockQuantity, productIndex, blankFields, noneFields, setFields, blankFieldsAt, noneFieldsAt, setFieldsAt)}
 
   ${generatePicturesXml(product)}
 
@@ -1393,6 +1443,7 @@ export default {
   	  "price",
   	  "brand",
   	  "country",
+      "stock",
  	  "images",
   	  "imageOrder",
   	  "category",
@@ -1568,6 +1619,7 @@ export default {
     "vendor",
     "country",
     "temperature_mode",
+    "stock_quantity",
   ];
 
   const blankFields = [
@@ -1868,6 +1920,22 @@ export default {
     );
   }
 
+  const invalidTargetedStockValues =
+    validSetFieldsAt.filter(
+      (item) =>
+        item.name === "stock_quantity" &&
+        !/^\d+$/.test(item.value)
+    );
+
+  if (invalidTargetedStockValues.length > 0) {
+    return new Response(
+      "stock_quantity in setFieldAt must be a non-negative integer",
+      {
+        status: 400,
+      }
+    );
+  }
+
   const sameTarget = (
     first: IndexedFieldTarget,
     second: IndexedFieldTarget
@@ -1940,6 +2008,22 @@ export default {
       `Unknown setField: ${[
         ...new Set(invalidSetFields),
       ].join(", ")}`,
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const invalidGlobalStockValues =
+    validSetFields.filter(
+      (item) =>
+        item.name === "stock_quantity" &&
+        !/^\d+$/.test(item.value)
+    );
+
+  if (invalidGlobalStockValues.length > 0) {
+    return new Response(
+      "stock_quantity must be a non-negative integer",
       {
         status: 400,
       }

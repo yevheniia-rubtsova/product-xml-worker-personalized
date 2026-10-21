@@ -226,6 +226,22 @@ blankFieldAt=ProductIndex:Field
 noneFieldAt=ProductIndex:Field
 ```
 
+### Stock
+
+Кожен товар за замовчуванням отримує поле:
+
+```xml
+<stock_quantity>...</stock_quantity>
+```
+Значення генерується детерміновано в діапазоні `0–100`.
+
+Stock можна:
+
+- змінити через `change=stock`;
+- явно задати через `setField` або `setFieldAt`;
+- зробити порожнім через `blankField` / `blankFieldAt`;
+- повністю прибрати через `noneField` / `noneFieldAt`.
+
 ### Пріоритети та конфлікти
 
 - `change` спочатку формує update-state.
@@ -261,6 +277,8 @@ noneFieldAt=ProductIndex:Field
 | Змінити ціну | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=price&changeSeed=1` | Для кожного товару змінюються `price` та `old_price`. |
 | Змінити бренд | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=brand&changeSeed=1` | Кожен товар отримує інший бренд, якщо в довіднику є альтернатива. |
 | Змінити країну | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=country&changeSeed=1` | Кожен товар отримує іншу країну, якщо в довіднику є альтернатива. |
+| Змінити stock | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=stock&changeSeed=1` | `stock_quantity` змінюється на інше детерміноване значення. |
+| Random stock | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1` | Для кожного товару генерується детермінований `stock_quantity` від `0` до `100`. |
 | Змінити категорію | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&change=category&changeSeed=1` | ID товару зберігається, але `portal_id`, `categoryId` та набір характеристик змінюються. |
 | Змінити декілька полів одночасно | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&change=price,brand,country,images&changeSeed=1` | Усі перелічені поля змінюються в одному update-state. |
 | Змінити категорію та всі характеристики | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?categories=8&idSeed=test-1&change=category,characteristics&changeSeed=1` | Спочатку змінюється категорія, потім характеристики вже нової категорії. |
@@ -303,6 +321,13 @@ noneFieldAt=ProductIndex:Field
 | Порожнє поле у кількох конкретних товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&blankFieldAt=2:name_ua&blankFieldAt=3:name_ua` | `name_ua` буде порожнім у 2-го та 3-го товарів. |
 | Прибрати поле у конкретного товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&noneFieldAt=2:vendor` | `<vendor>` буде відсутній тільки у 2-го товару. |
 | Задати значення поля конкретному товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&setFieldAt=3:vendor:Elantra` | Тільки 3-й товар отримає `vendor=Elantra`. |
+| Задати stock для всіх товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&setField=stock_quantity:5` | Усі товари отримають `<stock_quantity>5</stock_quantity>`. |
+| Задати stock конкретному товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&setFieldAt=2:stock_quantity:15` | Тільки 2-й товар отримає `stock_quantity=15`. |
+| Різний stock для кількох товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&setFieldAt=1:stock_quantity:0&setFieldAt=2:stock_quantity:5&setFieldAt=3:stock_quantity:100` | Кожному товару задається окреме значення stock. |
+| Порожній stock у всіх товарів | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&blankField=stock_quantity` | Генерується `<stock_quantity></stock_quantity>`. |
+| Не передавати stock | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?idSeed=test-1&noneField=stock_quantity` | Тег `<stock_quantity>` повністю відсутній у `<offer>`. |
+| Порожній stock конкретного товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&blankFieldAt=2:stock_quantity` | `stock_quantity` буде порожнім тільки у 2-го товару. |
+| Не передавати stock конкретного товару | `https://product-xml-worker-personalized.y-rubtsova.workers.dev/products.xml?count=3&idSeed=test-1&noneFieldAt=3:stock_quantity` | Тег `stock_quantity` буде відсутній тільки у 3-го товару. |
 
 ### Зображення
 
@@ -332,7 +357,7 @@ noneFieldAt=ProductIndex:Field
 | `changeSeed` | Може бути будь-яким непорожнім рядком. |
 | `changeSeed` за замовчуванням | `"1"`. |
 | Порожній `changeSeed` | HTTP `400`. |
-| Підтримувані `change` | `price`, `brand`, `country`, `images`, `imageOrder`, `category`, `characteristics`. |
+| Підтримувані `change` | `price`, `brand`, `country`, `stock`, `images`, `imageOrder`, `category`, `characteristics`. |
 | Невідоме значення `change` | HTTP `400`. |
 | Дублікати у `change` | Автоматично видаляються. |
 | `change=price` | Змінюються і `price`, і `old_price`; `old_price` залишається більшим за нову ціну. |
@@ -383,7 +408,7 @@ noneFieldAt=ProductIndex:Field
 | Некоректний формат `setCharacteristic` | Якщо немає `:` або відсутня назва/значення, повертається HTTP `400`. |
 | `blankField` | Робить вказане поле `<offer>` порожнім, але залишає сам тег у XML. |
 | `noneField` | Повністю прибирає вказане поле `<offer>` з XML. |
-| Підтримувані `blankField` / `noneField` | `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`. |
+| Підтримувані `blankField` / `noneField` | `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`, `stock_quantity`. |
 | Декілька `blankField` / `noneField` | Можна передавати через кому, наприклад `blankField=vendor,country,price`. |
 | `blankField` і `noneField` для одного поля | Заборонено, HTTP `400`. |
 | Невідоме поле в `blankField` | HTTP `400`. |
@@ -391,7 +416,7 @@ noneFieldAt=ProductIndex:Field
 | `setField` | Примусово задає значення поля `<offer>`. Значення не перевіряється по source data. |
 | Формат `setField` | `setField=НазваПоля:Значення` |
 | Декілька `setField` | Параметр можна повторювати кілька разів у одному URL. |
-| Підтримувані `setField` | `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`. |
+| Підтримувані `setField` | `name_ua`, `name_ru`, `description_ua`, `description_ru`, `price`, `old_price`, `categoryId`, `vendor`, `country`, `temperature_mode`, `stock_quantity`. |
 | `setField` + `blankField` для одного поля | Заборонено, HTTP `400`. |
 | `setField` + `noneField` для одного поля | Заборонено, HTTP `400`. |
 | `setField` + `change` | Дозволено. `setField` має фінальний пріоритет у XML. Наприклад, `change=brand&setField=vendor:Elantra` поверне `vendor=Elantra`. |
@@ -412,6 +437,15 @@ noneFieldAt=ProductIndex:Field
 | `blankFieldAt` + `noneFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
 | `setFieldAt` + `blankFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
 | `setFieldAt` + `noneFieldAt` для одного товару і поля | Заборонено, HTTP `400`. |
+| Baseline `stock_quantity` | Для кожного товару детерміновано генерується ціле число від `0` до `100`. Однаковий `idSeed` повертає той самий stock. |
+| `change=stock` | Генерує інше детерміноване значення `stock_quantity` від `0` до `100`. |
+| `setField=stock_quantity:N` | Дозволяє явно задати stock для всіх товарів. `N` має бути цілим невід'ємним числом. |
+| `setFieldAt=N:stock_quantity:VALUE` | Дозволяє явно задати stock конкретному товару. `VALUE` має бути цілим невід'ємним числом. |
+| `blankField=stock_quantity` | Генерує `<stock_quantity></stock_quantity>` для всіх товарів. |
+| `noneField=stock_quantity` | Повністю прибирає тег `<stock_quantity>` у всіх товарів. |
+| `blankFieldAt=N:stock_quantity` | Робить stock порожнім тільки у конкретного товару. |
+| `noneFieldAt=N:stock_quantity` | Повністю прибирає stock тільки у конкретного товару. |
+| Некоректний `stock_quantity` | Від'ємні числа, дробові значення та нечислові значення повертають HTTP `400`. |
 
 ---
 
